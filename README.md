@@ -1,36 +1,145 @@
-# Introduction
+```php
+<?php
+declare(strict_types=1);
 
-This is a skeleton application using the Hyperf framework. This application is meant to be used as a starting place for those looking to get their feet wet with Hyperf Framework.
+namespace App\Controller;
 
-# Requirements
+//注解@后面的类都需要use进来(Inject,Controller,AutoController)
+//引入 use GetMapping、PostMapping、RequestMapping、PutMapping、PatchMapping、DeleteMapping
+use App\Exception\InvalidParamException;
+use App\Service\UserService;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Di\Annotation\Inject;
+use Hyperf\HttpServer\Annotation\Controller;
+use Hyperf\HttpServer\Annotation\DeleteMapping;
+use Hyperf\HttpServer\Annotation\GetMapping;
+use Hyperf\HttpServer\Annotation\PatchMapping;
+use Hyperf\HttpServer\Annotation\PostMapping;
+use Hyperf\HttpServer\Annotation\RequestMapping;
+use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\HttpServer\Contract\ResponseInterface;
+use Psr\Container\ContainerInterface;
 
-Hyperf has some requirements for the system environment, it can only run under Linux and Mac environment, but due to the development of Docker virtualization technology, Docker for Windows can also be used as the running environment under Windows.
+/**
+ * @Controller()
+ */
+class TestController
+{
 
-The various versions of Dockerfile have been prepared for you in the [hyperf\hyperf-docker](https://github.com/hyperf/hyperf-docker) project, or directly based on the already built [hyperf\hyperf](https://hub.docker.com/r/hyperf/hyperf) Image to run.
 
-When you don't want to use Docker as the basis for your running environment, you need to make sure that your operating environment meets the following requirements:  
+    /**
+     * 通过 `@Inject` 注解注入由 `@var` 注解声明的属性类型对象
+     * 当 ContainerInterface 不存在于 DI 容器内或不可创建时，则注入 null
+     * Inject 直接注入，不用写构造方法
+     * 使用 @Inject 注解时需 use Hyperf\Di\Annotation\Inject; 命名空间；
+     *
+     * @Inject(required=false)
+     * @var ContainerInterface
+     */
+    private $container;
 
- - PHP >= 7.2
- - Swoole PHP extension >= 4.4，and Disabled `Short Name`
- - OpenSSL PHP extension
- - JSON PHP extension
- - PDO PHP extension （If you need to use MySQL Client）
- - Redis PHP extension （If you need to use Redis Client）
- - Protobuf PHP extension （If you need to use gRPC Server of Client）
+    // 通过在构造函数的参数上声明参数类型完成自动注入
+    public function __construct(ContainerInterface $container)
+    {
+        $this->container = $container;
+    }
 
-# Installation using Composer
+    /**
+     * 测试get
+     * @GetMapping(path="lists")
+     * @param RequestInterface $request
+     * @param ResponseInterface $response
+     * @return mixed
+     */
+    public function lists(RequestInterface $request, ResponseInterface $response)
+    {
+        $id = $request->input('id');
+        return '你发送的参数id=' . $id;
+    }
 
-The easiest way to create a new Hyperf project is to use Composer. If you don't have it already installed, then please install as per the documentation.
+    /**
+     * 测试post
+     * @PostMapping(path="update")
+     * @param RequestInterface $request
+     * @param ResponseInterface $response
+     * @return \Psr\Http\Message\ResponseInterface
+     */
+    public function update(RequestInterface $request, ResponseInterface $response)
+    {
+        $data = $request->post('data');
+        return $response->json($data);
+    }
 
-To create your new Hyperf project:
 
-$ composer create-project hyperf/hyperf-skeleton path/to/install
+    /**
+     * 测试重定向
+     * @GetMapping(path="get")
+     * @param RequestInterface $request
+     * @param ResponseInterface $response
+     * @return \Psr\Http\Message\ResponseInterface
+     */
+    public function get(RequestInterface $request, ResponseInterface $response)
+    {
+        $id = $request->query('id');
+        return $response->redirect('/test/lists?id=' . $id);
+    }
 
-Once installed, you can run the server immediately using the command below.
+    /**
+     * 测试下载
+     * @GetMapping(path="download")
+     * @param RequestInterface $request
+     * @param ResponseInterface $response
+     * @return \Psr\Http\Message\ResponseInterface
+     */
+    public function download(RequestInterface $request, ResponseInterface $response)
+    {
+        $file = '/root/Python-3.7.0.tar.xz';
+        $name = 'python-src-3.7.tar.xz';
+        return $response->download($file, $name);
+    }
 
-$ cd path/to/install
-$ php bin/hyperf.php start
+    //Hyperf 会自动为此方法生成一个 /test/t1 的路由，允许通过 GET 或 POST 方式请求
 
-This will start the cli-server on port `9501`, and bind it to all network interfaces. You can then visit the site at `http://localhost:9501/`
+    /**
+     * @RequestMapping(path="t1", methods="get,post")
+     */
+    public function t1()
+    {
+        echo 'aaaa' . PHP_EOL;  //输出到服务端控制台
+        return 't1';    //输出到访问的客户端
+    }
 
-which will bring up Hyperf default home page.
+    /**
+     * @RequestMapping(path="testContainer", methods="get,post")
+     * @return string
+     */
+    public function testContainer()
+    {
+        return 'container';
+    }
+
+    /**
+     * @GetMapping(path="exception")
+     */
+    public function exception()
+    {
+        throw new InvalidParamException(1234, '参数错误');
+    }
+
+    /**
+     * 容器注入
+     * @GetMapping(path="show")
+     * @return UserService
+     */
+    public function show()
+    {
+        $config = $this->container->get(ConfigInterface::class);
+        // 我们假设对应的配置的 key 为 cache.enable
+        $enableCache = $config->get('cache.enable', false);
+        // make(string $name, array $parameters = []) 方法等同于 new ，使用 make() 方法是为了允许 AOP 的介入，而直接 new 会导致 AOP 无法正常介入流程
+        return make(UserService::class, compact('enableCache'));
+    }
+
+
+}
+```
